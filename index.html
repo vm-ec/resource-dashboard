@@ -1,448 +1,356 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VMI Resource Management</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f8fafc; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-        .sticky-col { position: sticky; left: 0; z-index: 40; background-color: white; border-right: 1px solid #e2e8f0; }
-        th.sticky-col { z-index: 50; background-color: #f8fafc; }
-        
-        .tooltip-container:hover .tooltip-content { display: block; }
-        .past-date { background-color: #f9fafb; pointer-events: none; opacity: 0.5; }
-        .inactive-row { background-color: #f3f4f6; filter: grayscale(100%); opacity: 0.7; }
-        .inactive-row .sticky-col { background-color: #f3f4f6; }
-        .input-error { border-color: #ef4444 !important; background-color: #fef2f2 !important; }
-        
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 14px; width: 14px;
-            border-radius: 50%; background: #4f46e5; cursor: pointer; margin-top: -5px;
-        }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%; height: 4px; cursor: pointer; background: #e2e8f0; border-radius: 2px;
-        }
-
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        .toast { animation: slideIn 0.3s ease-out forwards; }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VMI Resource Management</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Inter, sans-serif; }
+  .sticky-col { position: sticky; left: 0; z-index: 5; background: white; min-width: 260px; }
+  thead .sticky-col { z-index: 15; background: #f8fafc; }
+  .modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.55); backdrop-filter: blur(3px); z-index: 100; }
+  .modal.open { display: flex; }
+  .modal-card { background: white; width: min(100%, 760px); max-height: 92vh; overflow: auto; border-radius: 14px; box-shadow: 0 24px 70px rgba(0,0,0,.25); }
+  .dot { width: 34px; height: 34px; border: 3px solid #d1d5db; border-radius: 50%; margin: auto; cursor: pointer; background: white; }
+  .dot.selected { background: #3b82f6; border-color: #2563eb; }
+  .dot.busy { background: #22c55e; border-color: #16a34a; cursor: pointer; }
+  .dot.inactive { background: #9ca3af; border-color: #6b7280; cursor: default; }
+  .past { opacity: .45; background: #f8fafc; }
+  .toast { animation: toastIn .2s ease-out; }
+  @keyframes toastIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+  input, textarea, select { outline: none; color-scheme: light; }
+  /* Keep form controls readable even when the browser/OS uses dark mode. */
+  .field { width:100%; border:1px solid #cbd5e1; border-radius:7px; padding:9px 10px; font-size:13px; background-color:#ffffff !important; color:#1e293b !important; color-scheme:light; }
+  .field::placeholder { color:#94a3b8 !important; opacity:1; }
+  .field:focus { border-color:#6366f1; box-shadow:0 0 0 2px #e0e7ff; background-color:#ffffff !important; color:#1e293b !important; }
+  .modal-card { color:#1e293b; background:#ffffff !important; color-scheme:light; }
+  .modal-card input, .modal-card textarea, .modal-card select { background-color:#ffffff !important; color:#1e293b !important; color-scheme:light; }
+  .modal-card input::placeholder, .modal-card textarea::placeholder { color:#94a3b8 !important; opacity:1; }
+  .error { border-color:#ef4444 !important; background:#fef2f2; }
+  .tech-filter { white-space:nowrap; border:1px solid #d1d5db; border-radius:7px; padding:7px 10px; background:#fff; color:#475569; font-size:11px; font-weight:500; transition:all .15s ease; }
+  .tech-filter:hover { border-color:#94a3b8; background:#f8fafc; }
+  .tech-filter.active { background:#e0e7ff; border-color:#6366f1; color:#3730a3; box-shadow:0 0 0 1px #c7d2fe inset; }
+  @media (max-width: 900px) { header { align-items:flex-start; } #tech-filters { order:3; width:100%; } }
+</style>
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
-
-    <header class="bg-white shadow-sm border-b z-50 flex-none h-14 flex items-center px-4 justify-between gap-4">
-        <div class="flex items-center gap-4">
-            <div class="flex flex-col leading-tight">
-                <h1 class="text-lg font-bold text-indigo-900 flex items-center gap-2">
-                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i> VMI Resource Management
-                </h1>
-                <div class="flex gap-1 mt-0.5">
-                    <button onclick="setRole('Resources')" id="btn-Resources" class="role-btn text-[10px] px-2 py-0.5 rounded border">Resources</button>
-                    <button onclick="setRole('Architect')" id="btn-Architect" class="role-btn text-[10px] px-2 py-0.5 rounded border">Architect</button>
-                    <button onclick="setRole('RMG')" id="btn-RMG" class="role-btn text-[10px] px-2 py-0.5 rounded border">RMG</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="stats-container" class="hidden items-center gap-3 bg-slate-50 px-2 py-1 rounded border text-[10px] font-medium shadow-sm h-8"></div>
-
-        <div class="flex items-center gap-3 flex-1 justify-end">
-            <div class="hidden lg:flex items-center gap-2 border-r pr-3 mr-1">
-                <span class="text-[10px] font-bold text-gray-400 uppercase">Min Exp:</span>
-                <input type="range" id="expSlider" min="0" max="15" value="0" class="w-16" oninput="updateExpLabel(); renderGrid()">
-                <span id="expLabel" class="text-[10px] font-bold text-indigo-600 w-6 text-right">0+</span>
-            </div>
-
-            <div class="hidden lg:flex items-center gap-1" id="tech-filters"></div>
-            
-            <div class="relative w-32">
-                <i data-lucide="search" class="absolute left-2 top-1.5 w-3 h-3 text-gray-400"></i>
-                <input type="text" id="searchInput" placeholder="Search..." 
-                       class="pl-7 pr-2 py-1 w-full text-[10px] border rounded bg-slate-50 focus:bg-white outline-none focus:ring-1 focus:ring-indigo-500"
-                       oninput="renderGrid()">
-            </div>
-            
-            <div class="h-6 w-px bg-gray-200"></div>
-
-            <div id="admin-controls" class="hidden items-center gap-1">
-                <button onclick="backupData()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 p-1.5 rounded border border-indigo-200 shadow-sm transition-all" title="Backup Database">
-                    <i data-lucide="save" class="w-3.5 h-3.5"></i>
-                </button>
-                <label class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 p-1.5 rounded border border-indigo-200 shadow-sm transition-all cursor-pointer" title="Restore Database">
-                    <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
-                    <input type="file" accept=".json" class="hidden" onchange="restoreData(this)">
-                </label>
-                <button onclick="downloadCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded shadow-sm transition-all" title="Export CSV">
-                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                </button>
-            </div>
-
-            <button id="assign-btn" onclick="openAllocationModal()" 
-                    class="hidden bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-[10px] font-bold shadow-md flex items-center gap-1 transition-all">
-                <span>Assign</span>
-                <span id="assign-badge" class="bg-white text-indigo-600 px-1 rounded-full text-[9px]">0</span>
-            </button>
-            <button id="add-resource-btn" onclick="openAddModal()" class="hidden bg-gray-800 hover:bg-gray-900 text-white px-3 py-1.5 rounded text-[10px] font-semibold flex items-center gap-1 shadow-sm transition-all">
-                <i data-lucide="user-plus" class="w-3 h-3"></i> Add
-            </button>
-        </div>
-    </header>
-
-    <main class="flex-1 overflow-auto relative w-full select-none" id="main-container">
-        <table class="border-collapse w-full">
-            <thead class="bg-gray-50 sticky top-0 z-40 shadow-sm">
-                <tr id="calendar-header"></tr>
-            </thead>
-            <tbody id="grid-body"></tbody>
-        </table>
-    </main>
-
-    <div id="allocation-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-            <div class="p-5 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
-                <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2"><i data-lucide="briefcase" class="w-5 h-5 text-indigo-600"></i> Confirm Assignments</h3>
-                <button onclick="closeModal('allocation-modal')" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-6 h-6"></i></button>
-            </div>
-            <div class="p-6 overflow-y-auto flex-1">
-                <table class="w-full text-sm text-left">
-                    <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-b">
-                        <tr>
-                            <th class="px-3 py-2">Resource</th>
-                            <th class="px-3 py-2 w-32">Dates</th>
-                            <th class="px-3 py-2 w-1/4">Assignment Title</th>
-                            <th class="px-3 py-2 w-1/4">Assignment Details</th>
-                            <th class="px-3 py-2">Link/File</th>
-                        </tr>
-                    </thead>
-                    <tbody id="allocation-rows" class="divide-y divide-gray-100"></tbody>
-                </table>
-            </div>
-            <div class="p-5 border-t bg-gray-50 rounded-b-lg flex justify-between items-center">
-                <div class="text-xs text-gray-500 max-w-lg">
-                    <div class="font-bold mb-0.5">Notification Routing:</div>
-                    <div class="truncate">To: <span id="alloc-to-list" class="font-mono text-gray-900 font-bold"></span></div>
-                    <div class="truncate">CC: <span class="text-indigo-600 font-mono">Bhagya.B..., Arikatla.S...</span></div>
-                </div>
-                <div class="flex gap-3">
-                    <button onclick="closeModal('allocation-modal')" class="px-4 py-2 border rounded text-sm hover:bg-gray-50">Cancel</button>
-                    <button onclick="prepareEmailPreview()" class="px-6 py-2 bg-indigo-600 text-white rounded text-sm font-bold hover:bg-indigo-700 shadow-sm flex items-center gap-2">
-                        <i data-lucide="mail-plus" class="w-4 h-4"></i> Draft Email
-                    </button>
-                </div>
-            </div>
-        </div>
+<header class="bg-white border-b shadow-sm px-4 py-3 flex flex-wrap items-center gap-4 justify-between z-20">
+  <div>
+    <h1 class="font-bold text-lg text-indigo-900 flex items-center gap-2"><i data-lucide="layout-dashboard"></i> VMI Resource Management</h1>
+    <div class="flex gap-1 mt-1" aria-label="Role selector">
+      <button class="role-btn px-3 py-1 rounded border text-xs" data-role="Resources">Resources</button>
+      <button class="role-btn px-3 py-1 rounded border text-xs" data-role="Architect">Architect</button>
+      <button class="role-btn px-3 py-1 rounded border text-xs" data-role="RMG">RMG</button>
     </div>
-
-    <div id="email-preview-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-[2px] z-[150] flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-            <div class="p-4 border-b bg-gray-50 rounded-t-lg flex justify-between items-center">
-                <div>
-                    <h3 class="font-bold text-gray-800">Email Preview</h3>
-                    <p class="text-xs text-gray-500">Review the HTML format before sending.</p>
-                </div>
-                <button onclick="closeModal('email-preview-modal')" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <div class="p-6 overflow-y-auto bg-gray-100">
-                <div id="email-content-container" class="bg-white border p-8 shadow-sm text-sm text-gray-800" contenteditable="true">
-                    </div>
-            </div>
-            <div class="p-4 border-t bg-white rounded-b-lg flex flex-col gap-2">
-                <div class="flex items-center gap-2 p-2 bg-blue-50 text-blue-800 text-xs rounded border border-blue-100">
-                    <i data-lucide="info" class="w-4 h-4 shrink-0"></i>
-                    <span>Click <b>"Copy & Open Mail"</b>, then press <b>Ctrl+V (Paste)</b> in your email body.</span>
-                </div>
-                <div class="flex justify-end gap-3 mt-2">
-                    <button onclick="closeModal('email-preview-modal')" class="px-4 py-2 text-sm border rounded hover:bg-gray-50">Back</button>
-                    <button onclick="copyAndOpenMail()" class="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700 shadow flex items-center gap-2">
-                        <i data-lucide="copy" class="w-4 h-4"></i> Copy & Open Mail
-                    </button>
-                </div>
-            </div>
-        </div>
+  </div>
+  <div id="stats" class="hidden text-xs bg-slate-50 border rounded-lg px-3 py-2"></div>
+  <div class="flex items-center flex-wrap gap-2 ml-auto">
+    <label class="text-xs text-slate-500">Min Exp <input id="exp-filter" type="range" min="0" max="15" value="0" class="w-20 align-middle"></label>
+    <span id="exp-label" class="text-xs text-indigo-600 font-semibold">0+</span>
+    <div id="tech-filters" class="flex items-center flex-wrap gap-1" aria-label="Filter by technology"></div>
+    <input id="search" class="field !w-36" placeholder="Search..." aria-label="Search resources">
+    <div id="admin-actions" class="hidden flex gap-1">
+      <button id="backup-btn" class="px-2 py-2 rounded bg-indigo-50 text-indigo-700" title="Backup"><i data-lucide="download" class="w-4 h-4"></i></button>
+      <label class="px-2 py-2 rounded bg-indigo-50 text-indigo-700 cursor-pointer" title="Restore"><i data-lucide="upload" class="w-4 h-4"></i><input id="restore-file" type="file" accept=".json" class="hidden"></label>
+      <button id="csv-btn" class="px-2 py-2 rounded bg-emerald-600 text-white" title="Export CSV"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i></button>
     </div>
+    <button id="assign-btn" class="hidden px-3 py-2 rounded bg-indigo-600 text-white text-xs font-bold">Assign <span id="assign-count" class="ml-1 bg-white text-indigo-700 rounded-full px-1.5">0</span></button>
+    <button id="add-resource-btn" class="hidden px-3 py-2 rounded bg-slate-800 text-white text-xs font-semibold flex items-center gap-1"><i data-lucide="user-plus" class="w-4 h-4"></i> Add</button>
+  </div>
+</header>
+<main id="calendar-wrap" class="flex-1 overflow-auto">
+  <table class="border-collapse min-w-max w-full text-sm"><thead class="sticky top-0 z-10 bg-slate-50"><tr id="calendar-head"></tr></thead><tbody id="resource-rows"></tbody></table>
+</main>
 
-    <div id="unassign-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[110] flex items-center justify-center">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
-            <div class="flex justify-between items-start mb-4 border-b pb-3"><h3 class="font-bold text-gray-800">Manage Assignment</h3><button onclick="closeModal('unassign-modal')" class="text-gray-400"><i data-lucide="x" class="w-4 h-4"></i></button></div>
-            <div class="space-y-3 mb-6"><div><div class="text-xs text-gray-500 uppercase">Project</div><div id="view-title" class="font-bold text-indigo-700"></div></div><div><div class="text-xs text-gray-500 uppercase">Details</div><div id="view-desc" class="text-sm text-gray-700 bg-gray-50 p-2 rounded border"></div></div><div id="view-link-container" class="hidden"><div class="text-xs text-gray-500 uppercase">Attachment</div><a id="view-link" href="#" target="_blank" class="text-sm text-blue-600 hover:underline flex items-center gap-1"><i data-lucide="link" class="w-3 h-3"></i> Open Link</a></div></div>
-            <div class="flex gap-3"><button onclick="closeModal('unassign-modal')" class="flex-1 py-2 border rounded text-sm hover:bg-gray-50">Close</button><button onclick="performUnassign()" class="flex-1 py-2 bg-red-50 text-red-600 border border-red-200 rounded text-sm font-bold hover:bg-red-100 flex justify-center gap-2"><i data-lucide="user-x" class="w-4 h-4"></i> Release Resource</button></div>
-        </div>
-    </div>
-    <div id="profile-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
-            <div class="w-full md:w-1/3 bg-slate-50 border-r border-gray-100 flex flex-col p-6 items-center text-center"><div class="relative w-32 h-32 mb-4"><img id="prof-img" src="" class="w-32 h-32 rounded-full border-4 border-white shadow-md bg-white object-cover"><div id="prof-initials" class="hidden w-32 h-32 rounded-full border-4 border-white shadow-md bg-white flex items-center justify-center text-3xl font-bold text-indigo-600"></div><label class="absolute bottom-1 right-1 bg-gray-800 text-white p-2 rounded-full cursor-pointer hover:bg-black shadow-sm" title="Upload Photo"><i data-lucide="camera" class="w-4 h-4"></i><input type="file" class="hidden" accept="image/*" onchange="uploadProfileImage(this)"></label></div><h2 id="prof-name" class="text-lg font-bold text-gray-900 leading-tight"></h2><p id="prof-email" class="text-xs text-gray-500 mb-2 break-all"></p><div id="prof-status-badge" class="mb-4"></div><div class="w-full space-y-3 mt-auto"><div class="flex items-center gap-2 border rounded p-2 bg-white shadow-sm"><i data-lucide="linkedin" class="w-4 h-4 text-blue-600 shrink-0"></i><input id="prof-li" placeholder="LinkedIn URL" class="w-full bg-transparent text-xs outline-none"></div><div class="flex items-center gap-2 border rounded p-2 bg-white shadow-sm"><i data-lucide="github" class="w-4 h-4 text-gray-800 shrink-0"></i><input id="prof-gh" placeholder="GitHub URL" class="w-full bg-transparent text-xs outline-none"></div></div></div>
-            <div class="w-full md:w-2/3 p-6 overflow-y-auto"><div class="flex justify-between items-start mb-4"><h3 class="text-md font-bold text-gray-800 uppercase tracking-wide">Professional Profile</h3><button onclick="closeModal('profile-modal')" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-5 h-5"></i></button></div><div class="space-y-5"><div><label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Bio</label><input id="prof-bio" placeholder="Add a one-liner bio..." class="w-full border-b border-gray-200 focus:border-indigo-600 outline-none py-1 text-sm bg-transparent"></div><div class="grid grid-cols-2 gap-4"><div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100"><span class="block text-[10px] font-bold text-indigo-400 uppercase">Total Experience</span><span id="prof-exp" class="text-lg font-bold text-indigo-700"></span></div><div class="bg-blue-50 p-3 rounded-lg border border-blue-100"><span class="block text-[10px] font-bold text-blue-400 uppercase">VMI Tenure</span><span id="prof-vmi" class="text-lg font-bold text-blue-700"></span></div></div><div class="bg-gray-50 p-3 rounded-lg border border-gray-200"><div class="text-[10px] font-bold text-gray-400 uppercase mb-2">Current/Recent Project (Editable)</div><input id="prof-proj-name" placeholder="Project Name" class="w-full bg-white border border-gray-300 rounded text-sm px-2 py-1 mb-2 outline-none focus:border-indigo-500 font-semibold"><textarea id="prof-proj-desc" placeholder="Project Details..." class="w-full bg-white border border-gray-300 rounded text-xs px-2 py-1 h-16 resize-none outline-none focus:border-indigo-500"></textarea></div><div><label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tech Stack</label><div id="prof-tech" class="flex flex-wrap gap-1.5"></div></div><div><label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Location</label><input id="prof-loc" placeholder="City, Country" class="w-full border-b border-gray-200 focus:border-indigo-600 outline-none py-1 text-sm bg-transparent"></div></div><div class="mt-6 flex justify-end"><button onclick="saveProfile()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md transition-all">Save Changes</button></div></div>
-        </div>
-    </div>
-    <div id="rmg-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[100] flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl p-6 border border-gray-200">
-            <h3 class="text-lg font-bold mb-6 text-gray-800 border-b pb-3">Onboard New Resource</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="space-y-4"><div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Personal Details</label><input id="new-name" placeholder="Full Name *" class="w-full border border-gray-300 p-2 rounded text-sm focus:border-indigo-500 outline-none mb-3"><input id="new-email" placeholder="Email (@valuemomentum.com) *" class="w-full border border-gray-300 p-2 rounded text-sm focus:border-indigo-500 outline-none"></div><div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Experience (Years)</label><div class="grid grid-cols-2 gap-3"><input id="new-exp" type="number" placeholder="Total Exp *" class="w-full border border-gray-300 p-2 rounded text-sm focus:border-indigo-500 outline-none"><input id="new-vmi" type="number" placeholder="VMI Exp *" class="w-full border border-gray-300 p-2 rounded text-sm focus:border-indigo-500 outline-none"></div></div></div><div class="space-y-4"><div class="bg-gray-50 p-3 rounded border border-gray-100"><div class="text-xs font-semibold text-gray-500 mb-2">Project Info (Optional)</div><input id="new-proj-name" placeholder="Project Name" class="w-full border border-gray-300 p-2 rounded text-sm mb-2 bg-white focus:border-indigo-500 outline-none"><textarea id="new-proj-desc" placeholder="Details..." class="w-full border border-gray-300 p-2 rounded text-sm bg-white h-20 resize-none focus:border-indigo-500 outline-none"></textarea></div><div><div class="text-xs font-bold text-gray-500 uppercase mb-2">Tech Family *</div><div class="grid grid-cols-2 gap-2" id="new-tech-options"></div></div></div></div><div class="flex gap-3 pt-6 mt-2 border-t"><button onclick="closeModal('rmg-modal')" class="flex-1 py-2 bg-white border border-gray-300 text-gray-600 rounded text-sm font-medium hover:bg-gray-50">Cancel</button><button onclick="addNewEmployee()" class="flex-1 py-2 bg-green-600 text-white rounded text-sm font-bold hover:bg-green-700 shadow-md">Add Resource</button></div>
-        </div>
-    </div>
-    <div id="deactivate-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-[2px] z-[110] flex items-center justify-center">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all"><div class="bg-amber-50 px-6 py-4 border-b border-amber-100 flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0"><i data-lucide="power" class="w-5 h-5"></i></div><div><h3 class="text-lg font-bold text-amber-900 leading-tight">Deactivate Resource?</h3><p class="text-xs text-amber-700 opacity-80">This will mark the employee as Inactive.</p></div></div><div class="p-6"><div class="flex items-start gap-4 mb-4 bg-gray-50 p-4 rounded-lg border border-gray-200"><div id="deact-avatar" class="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-lg font-bold text-indigo-700 shrink-0 border-2 border-white shadow-sm"></div><div class="flex-1"><div id="deact-name" class="font-bold text-gray-900 text-sm"></div><div id="deact-email" class="text-xs text-gray-500 mb-2"></div><div class="flex items-center gap-2 mb-2"><div id="deact-exp" class="text-[10px] font-bold bg-white px-2 py-0.5 rounded border text-gray-600 shadow-sm"></div><div id="deact-vmi" class="text-[10px] font-bold bg-white px-2 py-0.5 rounded border text-indigo-600 shadow-sm"></div></div><div id="deact-tech" class="flex flex-wrap gap-1"></div></div></div><div id="deact-warning" class="hidden mb-5 bg-red-50 border-l-4 border-red-500 p-3 rounded-r text-xs text-red-800"><div class="font-bold flex items-center gap-1 mb-1"><i data-lucide="alert-octagon" class="w-3 h-3"></i> Active Assignments Found</div>Assignments will be preserved but resource will be moved to bottom and frozen.</div><div class="flex gap-3"><button onclick="closeModal('deactivate-modal')" class="flex-1 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 shadow-sm">Cancel</button><button id="confirm-deactivate-btn" class="flex-1 py-2.5 bg-amber-600 text-white rounded-lg text-sm font-bold hover:bg-amber-700 shadow-md flex items-center justify-center gap-2"><i data-lucide="power-off" class="w-4 h-4"></i> Confirm Inactive</button></div></div></div>
-    </div>
+<!-- Add resource modal -->
+<div id="add-modal" class="modal"><section class="modal-card p-6">
+  <div class="flex justify-between items-center border-b pb-3 mb-5"><div><h2 class="font-bold text-lg">Onboard New Resource</h2><p class="text-xs text-slate-500">Enter the employee details below.</p></div><button class="close-modal text-slate-400" data-modal="add-modal"><i data-lucide="x"></i></button></div>
+  <form id="add-form" class="grid md:grid-cols-2 gap-4">
+    <div class="space-y-3"><div><label class="text-xs font-semibold">Full Name *</label><input id="new-name" class="field mt-1" required></div><div><label class="text-xs font-semibold">Company Email *</label><input id="new-email" type="email" placeholder="name@valuemomentum.com" class="field mt-1" required></div><div class="grid grid-cols-2 gap-2"><div><label class="text-xs font-semibold">Total Experience *</label><input id="new-exp" type="number" min="0" step="0.5" class="field mt-1" required></div><div><label class="text-xs font-semibold">VMI Experience *</label><input id="new-vmi" type="number" min="0" step="0.5" class="field mt-1" required></div></div></div>
+    <div class="space-y-3"><div><label class="text-xs font-semibold">Project Name</label><input id="new-project" class="field mt-1"></div><div><label class="text-xs font-semibold">Project Details</label><textarea id="new-description" rows="3" class="field mt-1"></textarea></div><div><label class="text-xs font-semibold block mb-2">Tech Family *</label><div id="tech-checkboxes" class="grid grid-cols-2 gap-2"></div></div></div>
+    <div class="md:col-span-2 flex justify-end gap-2 border-t pt-4"><button type="button" class="close-modal px-4 py-2 border rounded text-sm" data-modal="add-modal">Cancel</button><button type="submit" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-bold">Add Resource</button></div>
+  </form>
+</section></div>
 
-    <div id="toast-container" class="fixed bottom-5 right-5 z-[200] space-y-3"></div>
+<!-- Profile modal -->
+<div id="profile-modal" class="modal"><section class="modal-card max-w-3xl p-6">
+  <div class="flex justify-between items-center border-b pb-3 mb-4"><h2 class="font-bold text-lg">Resource Profile</h2><button class="close-modal" data-modal="profile-modal"><i data-lucide="x"></i></button></div>
+  <div class="grid md:grid-cols-3 gap-5"><div class="md:col-span-1 text-center bg-slate-50 rounded-lg p-4"><div id="profile-avatar" class="mx-auto w-20 h-20 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-2xl font-bold mb-3"></div><h3 id="profile-name" class="font-bold"></h3><p id="profile-email" class="text-xs text-slate-500 break-all"></p><p id="profile-status" class="text-xs mt-2 font-semibold"></p><div class="mt-4"><label class="text-xs block text-left">Upload photo</label><input id="profile-photo" type="file" accept="image/*" class="text-xs mt-1 w-full"></div></div>
+  <div class="md:col-span-2 space-y-3"><div class="grid grid-cols-2 gap-2"><div class="bg-indigo-50 p-3 rounded"><div class="text-xs text-indigo-500">Total Experience</div><div id="profile-exp" class="font-bold text-lg"></div></div><div class="bg-blue-50 p-3 rounded"><div class="text-xs text-blue-500">VMI Experience</div><div id="profile-vmi" class="font-bold text-lg"></div></div></div><div><label class="text-xs font-semibold">Bio</label><input id="profile-bio" class="field mt-1"></div><div><label class="text-xs font-semibold">Project Name</label><input id="profile-project" class="field mt-1"></div><div><label class="text-xs font-semibold">Project Details</label><textarea id="profile-description" class="field mt-1" rows="2"></textarea></div><div><label class="text-xs font-semibold">Location</label><input id="profile-location" class="field mt-1"></div><div class="grid grid-cols-2 gap-2"><div><label class="text-xs font-semibold">LinkedIn URL</label><input id="profile-linkedin" class="field mt-1"></div><div><label class="text-xs font-semibold">GitHub URL</label><input id="profile-github" class="field mt-1"></div></div><div class="flex justify-end"><button id="save-profile" class="px-5 py-2 bg-indigo-600 text-white rounded text-sm font-bold">Save Profile</button></div></div></div>
+</section></div>
 
-    <script>
-        const RMG_EMAILS = "Bhagya.Batchhu@valuemomentum.com,Arikatla.Sravani@valuemomentum.com";
-        const TECH_FAMILIES = ["Front End", "Backend - Java", "Backend - .NET", "DevOps", "QE"];
-        const TECH_COLORS = { "Front End": "bg-purple-100 text-purple-700", "Backend - Java": "bg-blue-100 text-blue-700", "Backend - .NET": "bg-cyan-100 text-cyan-700", "DevOps": "bg-orange-100 text-orange-700", "QE": "bg-emerald-100 text-emerald-700" };
-        const STORAGE_KEY = 'vmi_resource_dashboard_final_v16';
-        
-        let state = { role: 'Resources', employees: [{ id: 1, name: "Srivani Vadthya", email: "Srivani.Vadthya@valuemomentum.com", tech: ["Backend - Java"], exp: 1, vmiExp: 1, projectName: "Dashboard Revamp", projectDesc: "Leading the UI rewrite", status: "Active", avatar: "AJ", bio: "", loc: "Palnadu", li: "", gh: "", photo: "" }], allocations: {}, dates: [], todayIndex: 0 };
-        let selectedCells = new Set(); let activeFilters = new Set(); let currentProfileId = null; let activeUnassignKey = null;
-        let pendingAllocations = [];
+<!-- Assignment modal -->
+<div id="allocation-modal" class="modal"><section class="modal-card max-w-5xl p-6">
+  <div class="flex justify-between items-center border-b pb-3 mb-4"><h2 class="font-bold text-lg">Confirm Assignments</h2><button class="close-modal" data-modal="allocation-modal"><i data-lucide="x"></i></button></div>
+  <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-xs text-slate-500 border-b"><th class="p-2 text-left">Resource</th><th class="p-2 text-left">Dates</th><th class="p-2 text-left">Assignment Title</th><th class="p-2 text-left">Assignment Details</th><th class="p-2 text-left">Link</th></tr></thead><tbody id="allocation-rows"></tbody></table></div>
+  <div class="flex flex-wrap justify-between items-center gap-3 border-t pt-4 mt-4"><div class="text-xs text-slate-500">To: <span id="allocation-to" class="font-semibold text-slate-800"></span><br>CC: Bhagya.B..., Arikatla.S...</div><div class="flex flex-wrap gap-2"><button class="close-modal px-4 py-2 border rounded text-sm" data-modal="allocation-modal">Cancel</button><button id="save-assignment-btn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-bold">Save Assignment</button><button id="draft-email-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-bold">Draft Email</button></div></div>
+</section></div>
 
-        function init() { loadData(); generateDates(); setRole('Resources'); renderHeaderControls(); setTimeout(() => { const marker = document.getElementById('today-marker'); if(marker) document.getElementById('main-container').scrollLeft = marker.offsetLeft - 300; }, 100); lucide.createIcons(); }
-        function generateDates() { const dates = []; const today = new Date(); today.setHours(0,0,0,0); for(let i=15; i>0; i--) { const d=new Date(today); d.setDate(today.getDate()-i); dates.push(d); } state.todayIndex = dates.length; dates.push(today); for(let i=1; i<=45; i++) { const d=new Date(today); d.setDate(today.getDate()+i); dates.push(d); } state.dates = dates; }
-        function loadData() { const d = localStorage.getItem(STORAGE_KEY); if(d) { const p = JSON.parse(d); state.employees = p.employees; state.allocations = p.allocations; } }
-        function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify({employees: state.employees, allocations: state.allocations})); renderStats(); }
-        
-        function setRole(role) { 
-            state.role = role; 
-            document.querySelectorAll('.role-btn').forEach(b => { const active = b.id === `btn-${role}`; b.className = `role-btn text-[10px] px-2 py-0.5 rounded border transition-all ${active?'bg-indigo-600 text-white border-indigo-600 shadow':'bg-white text-gray-500 border-gray-200'}`; }); 
-            const isAuth = role === 'Architect' || role === 'RMG';
-            document.getElementById('add-resource-btn').classList.toggle('hidden', role !== 'RMG'); 
-            document.getElementById('admin-controls').classList.toggle('hidden', !isAuth); 
-            if(isAuth) document.getElementById('admin-controls').style.display = 'flex';
-            document.getElementById('stats-container').classList.toggle('hidden', !isAuth);
-            if(isAuth) document.getElementById('stats-container').style.display = 'flex';
-            
-            selectedCells.clear(); updateAssignButton(); renderGrid(); 
-        }
+<!-- Email preview -->
+<div id="email-modal" class="modal"><section class="modal-card max-w-3xl p-6"><div class="flex justify-between border-b pb-3 mb-4"><h2 class="font-bold">Email Preview</h2><button class="close-modal" data-modal="email-modal"><i data-lucide="x"></i></button></div><div id="email-preview" contenteditable="true" class="border rounded p-4 bg-white min-h-48 text-sm"></div><p class="text-xs text-slate-500 mt-3">Copy the formatted content, then paste it into your email message.</p><div class="flex justify-end gap-2 mt-4"><button class="close-modal px-4 py-2 border rounded text-sm" data-modal="email-modal">Back</button><button id="copy-mail-btn" class="px-4 py-2 bg-green-600 text-white rounded text-sm font-bold">Copy & Open Mail</button></div></section></div>
 
-        function renderStats() { 
-            const future = state.dates.slice(state.todayIndex); 
-            const activeEmps = state.employees.filter(e => e.status !== 'Inactive'); 
-            const total = activeEmps.length * future.length; 
-            let used = 0; 
-            let benchCount = 0;
+<!-- Assignment details -->
+<div id="details-modal" class="modal"><section class="modal-card max-w-md p-6"><div class="flex justify-between border-b pb-3 mb-4"><h2 class="font-bold">Manage Assignment</h2><button class="close-modal" data-modal="details-modal"><i data-lucide="x"></i></button></div><div class="space-y-3"><div><div class="text-xs text-slate-500">Project</div><div id="detail-title" class="font-bold text-indigo-700"></div></div><div><div class="text-xs text-slate-500">Details</div><p id="detail-description" class="bg-slate-50 p-3 rounded text-sm"></p></div><a id="detail-link" class="hidden text-blue-600 text-sm underline" target="_blank" rel="noopener">Open Link</a></div><div class="flex gap-2 mt-5"><button class="close-modal flex-1 border rounded py-2 text-sm" data-modal="details-modal">Close</button><button id="release-btn" class="flex-1 bg-red-600 text-white rounded py-2 text-sm">Release Resource</button></div></section></div>
 
-            activeEmps.forEach(e => {
-                let isAllocated = false;
-                future.forEach(d => { 
-                    if(state.allocations[`${e.id}-${d.getTime()}`]) { used++; isAllocated = true; }
-                });
-                if(!isAllocated) benchCount++;
-            });
+<!-- Deactivate -->
+<div id="deactivate-modal" class="modal"><section class="modal-card max-w-md p-6"><h2 class="font-bold text-lg mb-2">Deactivate Resource?</h2><p id="deactivate-copy" class="text-sm text-slate-600 mb-5"></p><div class="flex gap-2"><button class="close-modal flex-1 border rounded py-2" data-modal="deactivate-modal">Cancel</button><button id="confirm-deactivate" class="flex-1 bg-amber-600 text-white rounded py-2">Confirm Inactive</button></div></section></div>
+<div id="toast-area" class="fixed bottom-4 right-4 z-[200] space-y-2"></div>
 
-            const util = total ? Math.round((used/total)*100) : 0; 
-            // Compact Layout (Icons only)
-            document.getElementById('stats-container').innerHTML = `
-                <div class="flex gap-2 text-gray-500 items-center px-1">
-                    <div class="flex items-center gap-1" title="Total Capacity"><i data-lucide="users" class="w-3 h-3 text-gray-400"></i> ${total}</div>
-                    <div class="w-px h-3 bg-gray-200"></div>
-                    <div class="flex items-center gap-1" title="Utilization"><i data-lucide="activity" class="w-3 h-3 text-gray-400"></i> <span class="${util>80?'text-green-600':'text-orange-600'} font-bold">${util}%</span></div>
-                    <div class="w-px h-3 bg-gray-200"></div>
-                    <div class="flex items-center gap-1" title="Bench Count"><i data-lucide="armchair" class="w-3 h-3 text-gray-400"></i> <span class="text-indigo-600 font-bold">${benchCount}</span></div>
-                </div>`;
-            lucide.createIcons();
-        }
+<script>
+'use strict';
+(() => {
+  const STORAGE_KEY = 'vmi_resource_dashboard_final_v16';
+  const RMG_EMAILS = 'Bhagya.Batchhu@valuemomentum.com,Arikatla.Sravani@valuemomentum.com';
+  const TECH_FAMILIES = ['Front End', 'Backend - Java', 'Backend - .NET', 'DevOps', 'QE'];
+  const TECH_CLASS = {'Front End':'bg-purple-100 text-purple-700','Backend - Java':'bg-blue-100 text-blue-700','Backend - .NET':'bg-cyan-100 text-cyan-700','DevOps':'bg-orange-100 text-orange-700','QE':'bg-emerald-100 text-emerald-700'};
+  const $ = id => document.getElementById(id);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const state = { role:'Resources', employees:[], allocations:{}, dates:[], todayIndex:15 };
+  let selectedCells = new Set();
+  const selectedTechFilters = new Set();
+  let activeProfileId = null;
+  let activeAllocationKey = null;
+  let pendingAllocations = [];
+  let pendingDeactivateId = null;
+  let profilePhotoData = null;
 
-        function renderHeaderControls() { const cont = document.getElementById('tech-filters'); cont.innerHTML = ''; TECH_FAMILIES.forEach(tf => { const b = document.createElement('button'); b.className = `px-2 py-1 text-[10px] rounded border transition-all ${activeFilters.has(tf)?'bg-gray-800 text-white border-gray-800':'bg-white text-gray-600 hover:bg-gray-50'}`; b.innerText = tf; b.onclick = () => { activeFilters.has(tf)?activeFilters.delete(tf):activeFilters.add(tf); renderHeaderControls(); renderGrid(); }; cont.appendChild(b); }); const rmg = document.getElementById('new-tech-options'); rmg.innerHTML = ''; TECH_FAMILIES.forEach(tf => rmg.innerHTML += `<label class="flex items-center gap-2 p-2 border rounded text-xs"><input type="checkbox" value="${tf}" class="rounded text-indigo-600"> ${tf}</label>`); }
-        function updateExpLabel() { const val = document.getElementById('expSlider').value; document.getElementById('expLabel').innerText = val + "+"; }
-        
-        function renderGrid() {
-            const search = document.getElementById('searchInput').value.toLowerCase();
-            const minExp = parseInt(document.getElementById('expSlider').value);
-            const filtered = state.employees.filter(e => {
-                return (e.name.toLowerCase().includes(search) || e.email.toLowerCase().includes(search)) && 
-                       (activeFilters.size === 0 || e.tech.some(t => activeFilters.has(t))) &&
-                       (e.exp >= minExp);
-            }).sort((a,b) => (a.status === 'Inactive') - (b.status === 'Inactive'));
+  function defaultEmployee() {
+    return {id:1,name:'Srivani Vadthya',email:'Srivani.Vadthya@valuemomentum.com',tech:['Backend - Java'],exp:1,vmiExp:1,projectName:'Dashboard Revamp',projectDesc:'Leading the UI rewrite',status:'Active',avatar:'SV',bio:'',loc:'Palnadu',li:'',gh:'',photo:''};
+  }
+  function loadData() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) { state.employees=[defaultEmployee()]; state.allocations={}; return; }
+      const data = JSON.parse(raw);
+      state.employees = Array.isArray(data.employees) ? data.employees.map(normalizeEmployee) : [defaultEmployee()];
+      state.allocations = data.allocations && typeof data.allocations==='object' ? data.allocations : {};
+    } catch (error) { console.error('Could not load saved dashboard data:', error); state.employees=[defaultEmployee()]; state.allocations={}; }
+  }
+  function normalizeEmployee(e) {
+    return {id:e.id ?? Date.now()+Math.random(),name:e.name||'Unnamed',email:e.email||'',tech:Array.isArray(e.tech)?e.tech:[],exp:Number(e.exp)||0,vmiExp:Number(e.vmiExp)||0,projectName:e.projectName||'',projectDesc:e.projectDesc||'',status:e.status||'Active',avatar:e.avatar||String(e.name||'NA').slice(0,2).toUpperCase(),bio:e.bio||'',loc:e.loc||'',li:e.li||'',gh:e.gh||'',photo:e.photo||''};
+  }
+  function saveData() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({employees:state.employees,allocations:state.allocations})); renderStats(); }
+    catch(error) { console.error(error); alert('Could not save data. Browser storage may be full, possibly because profile photos are too large.'); }
+  }
+  function makeDates() {
+    state.dates=[];
+    for(let offset=-15; offset<=45; offset++) { const d=new Date(today); d.setDate(today.getDate()+offset); state.dates.push(d); }
+    state.todayIndex=15;
+  }
+  function openModal(id) { const modal=$(id); if(!modal) return; modal.classList.add('open'); }
+  function closeModal(id) { const modal=$(id); if(modal) modal.classList.remove('open'); }
+  function toast(message) {
+    const node=document.createElement('div'); node.className='toast bg-white border-l-4 border-green-500 rounded shadow-lg px-4 py-3 text-sm font-semibold'; node.textContent=message; $('toast-area').appendChild(node); setTimeout(()=>node.remove(),3000);
+  }
+  function safeText(value) { return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function setRole(role) {
+    state.role=role;
+    document.querySelectorAll('.role-btn').forEach(btn=>{ const active=btn.dataset.role===role; btn.className=`role-btn px-3 py-1 rounded border text-xs ${active?'bg-indigo-600 text-white border-indigo-600':'bg-white text-slate-600 border-slate-300'}`; });
+    $('add-resource-btn').classList.toggle('hidden',role!=='RMG');
+    $('admin-actions').classList.toggle('hidden',!['Architect','RMG'].includes(role));
+    $('stats').classList.toggle('hidden',!['Architect','RMG'].includes(role));
+    selectedCells.clear(); updateAssignButton(); renderGrid();
+  }
+  function renderTechControls() {
+    $('tech-checkboxes').innerHTML=TECH_FAMILIES.map(t=>`<label class="flex items-center gap-2 border rounded p-2 text-xs"><input type="checkbox" value="${safeText(t)}">${safeText(t)}</label>`).join('');
+    $('tech-filters').innerHTML=TECH_FAMILIES.map(t=>`<button type="button" class="tech-filter" data-tech-filter="${safeText(t)}" aria-pressed="false">${safeText(t)}</button>`).join('');
+  }
+  function updateTechFilterButtons() {
+    document.querySelectorAll('[data-tech-filter]').forEach(button=>{
+      const active=selectedTechFilters.has(button.dataset.techFilter);
+      button.classList.toggle('active',active);
+      button.setAttribute('aria-pressed',String(active));
+    });
+  }
+  function renderStats() {
+    const future=state.dates.slice(state.todayIndex);
+    const active=state.employees.filter(e=>e.status!=='Inactive');
+    const capacity=active.length*future.length;
+    let used=0, bench=0;
+    active.forEach(emp=>{let any=false; future.forEach(d=>{if(state.allocations[`${emp.id}-${d.getTime()}`]){used++;any=true;}}); if(!any)bench++;});
+    const util=capacity?Math.round(used/capacity*100):0;
+    $('stats').textContent=`Resources: ${active.length}  |  Utilization: ${util}%  |  Bench: ${bench}`;
+  }
+  function renderGrid() {
+    const search=$('search').value.trim().toLowerCase();
+    const minExp=Number($('exp-filter').value);
+    const employees=state.employees.filter(e=>{
+      const matchesSearch=e.name.toLowerCase().includes(search)||e.email.toLowerCase().includes(search)||e.tech.some(t=>t.toLowerCase().includes(search));
+      const matchesTech=!selectedTechFilters.size||e.tech.some(t=>selectedTechFilters.has(t));
+      return matchesSearch&&e.exp>=minExp&&matchesTech;
+    }).sort((a,b)=>(a.status==='Inactive')-(b.status==='Inactive'));
+    let head='<th class="sticky-col p-4 text-left text-xs uppercase text-slate-500 border-b">Resource</th>';
+    state.dates.forEach((date,index)=>{
+      const isToday=index===state.todayIndex;
+      head+=`<th class="min-w-[54px] px-1 py-2 text-center border-b ${isToday?'bg-indigo-50':''}"><div class="text-[10px] text-slate-400">${date.toLocaleDateString('en-US',{weekday:'short'}).slice(0,1)}</div><div class="font-bold ${isToday?'text-indigo-700':'text-slate-700'}">${date.getDate()}</div><div class="text-[9px] text-slate-400">${date.toLocaleDateString('en-US',{month:'short'}).toUpperCase()}</div></th>`;
+    });
+    $('calendar-head').innerHTML=head;
+    const tbody=$('resource-rows'); tbody.innerHTML='';
+    if(!employees.length){tbody.innerHTML='<tr><td colspan="62" class="p-10 text-center text-slate-400">No resources found.</td></tr>';return;}
+    employees.forEach(emp=>{
+      const tr=document.createElement('tr'); tr.className='border-b border-slate-100';
+      const tags=emp.tech.map(t=>`<span class="inline-block rounded px-1.5 py-0.5 text-[9px] mr-1 ${TECH_CLASS[t]||'bg-slate-100 text-slate-700'}">${safeText(t)}</span>`).join('');
+      const avatar=emp.photo?`<img src="${emp.photo}" class="w-9 h-9 rounded-full object-cover">`:`<div class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">${safeText(emp.avatar)}</div>`;
+      const action=state.role==='RMG'&&emp.status!=='Inactive'?`<button class="deactivate text-amber-600 text-xs ml-2" data-id="${emp.id}" title="Deactivate">Deactivate</button>`:'';
+      let html=`<td class="sticky-col p-3 border-r cursor-pointer" data-profile="${emp.id}"><div class="flex gap-2 items-center">${avatar}<div class="min-w-0"><div class="font-bold text-sm">${safeText(emp.name)} ${action}</div><div class="text-[10px] text-slate-400 break-all">${safeText(emp.email)}</div><div class="mt-1">${tags}</div></div></div></td>`;
+      state.dates.forEach((date,index)=>{
+        const key=`${emp.id}-${date.getTime()}`; const alloc=state.allocations[key]; const past=index<state.todayIndex;
+        let dot='';
+        if(alloc){dot=`<button class="dot busy" data-allocation="${safeText(key)}" title="${safeText(alloc.title)}"></button>`; if(emp.status==='Inactive')dot='<div class="dot inactive"></div>';}
+        else if(emp.status==='Inactive')dot='<div class="dot inactive"></div>';
+        else if(!past&&state.role==='Architect'){dot=`<button class="dot ${selectedCells.has(key)?'selected':''}" data-cell="${safeText(key)}" aria-label="Select ${safeText(emp.name)} on ${date.toDateString()}"></button>`;}
+        else dot='<div class="dot"></div>';
+        html+=`<td class="p-1 text-center ${past?'past':''}">${dot}</td>`;
+      });
+      tr.innerHTML=html; tbody.appendChild(tr);
+    });
+    renderStats();
+  }
+  function updateAssignButton(){ $('assign-btn').classList.toggle('hidden',!(state.role==='Architect'&&selectedCells.size)); $('assign-count').textContent=selectedCells.size; }
+  function openAddModal(){
+    if(state.role!=='RMG'){toast('Switch to RMG role to add a resource.');return;}
+    $('add-form').reset(); document.querySelectorAll('#tech-checkboxes input').forEach(c=>c.checked=false); openModal('add-modal');
+  }
+  function addEmployee(event){
+    event.preventDefault();
+    const name=$('new-name').value.trim(); const email=$('new-email').value.trim();
+    const exp=Number($('new-exp').value); const vmi=Number($('new-vmi').value);
+    const tech=[...document.querySelectorAll('#tech-checkboxes input:checked')].map(c=>c.value);
+    if(!name||!email||$('new-exp').value===''||$('new-vmi').value===''||!tech.length){alert('Please complete all required fields.');return;}
+    if(!/^[^\s@]+@valuemomentum\.com$/i.test(email)){alert('Email must end with @valuemomentum.com.');return;}
+    if(exp<0||vmi<0||vmi>exp){alert('VMI Experience must be between 0 and Total Experience.');return;}
+    if(state.employees.some(e=>e.email.toLowerCase()===email.toLowerCase())){alert('This email address already exists.');return;}
+    state.employees.push({id:Date.now(),name,email,exp,vmiExp:vmi,tech,projectName:$('new-project').value.trim(),projectDesc:$('new-description').value.trim(),status:'Active',avatar:name.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase(),bio:'',loc:'',li:'',gh:'',photo:''});
+    saveData(); renderGrid(); closeModal('add-modal'); toast('Resource added successfully.');
+  }
+  function openProfile(id){
+    const emp=state.employees.find(e=>String(e.id)===String(id)); if(!emp)return; activeProfileId=emp.id; profilePhotoData=emp.photo||null;
+    $('profile-avatar').innerHTML=emp.photo?`<img src="${emp.photo}" class="w-full h-full rounded-full object-cover">`:safeText(emp.avatar);
+    $('profile-name').textContent=emp.name; $('profile-email').textContent=emp.email; $('profile-status').textContent=emp.status;
+    $('profile-exp').textContent=`${emp.exp} years`; $('profile-vmi').textContent=`${emp.vmiExp} years`;
+    $('profile-bio').value=emp.bio; $('profile-project').value=emp.projectName; $('profile-description').value=emp.projectDesc; $('profile-location').value=emp.loc; $('profile-linkedin').value=emp.li; $('profile-github').value=emp.gh; $('profile-photo').value=''; openModal('profile-modal');
+  }
+  function saveProfile(){
+    const emp=state.employees.find(e=>e.id===activeProfileId); if(!emp)return;
+    emp.bio=$('profile-bio').value.trim(); emp.projectName=$('profile-project').value.trim(); emp.projectDesc=$('profile-description').value.trim(); emp.loc=$('profile-location').value.trim(); emp.li=$('profile-linkedin').value.trim(); emp.gh=$('profile-github').value.trim(); if(profilePhotoData!==null)emp.photo=profilePhotoData;
+    saveData();renderGrid();closeModal('profile-modal');toast('Profile updated.');
+  }
+  function handlePhoto(event){const file=event.target.files[0];if(!file)return;if(!file.type.startsWith('image/')){alert('Please choose an image file.');return;}if(file.size>1_500_000){alert('Please choose an image smaller than 1.5 MB.');return;}const reader=new FileReader();reader.onload=()=>{profilePhotoData=reader.result;$('profile-avatar').innerHTML=`<img src="${profilePhotoData}" class="w-full h-full rounded-full object-cover">`;};reader.readAsDataURL(file);}
+  function openDeactivate(id){const emp=state.employees.find(e=>String(e.id)===String(id));if(!emp)return;pendingDeactivateId=emp.id;$('deactivate-copy').textContent=`This will mark ${emp.name} as inactive. Existing assignments will be retained.`;openModal('deactivate-modal');}
+  function confirmDeactivate(){const emp=state.employees.find(e=>e.id===pendingDeactivateId);if(emp){emp.status='Inactive';saveData();renderGrid();toast('Resource deactivated.');}closeModal('deactivate-modal');}
+  function openAllocation(){
+    if(!selectedCells.size)return;
+    const grouped={};
+    selectedCells.forEach(key=>{const split=key.indexOf('-');const id=key.slice(0,split);const timestamp=Number(key.slice(split+1));(grouped[id]??=[]).push(timestamp);});
+    $('allocation-rows').innerHTML='';const names=[];
+    Object.entries(grouped).forEach(([id,timestamps])=>{
+      const emp=state.employees.find(e=>String(e.id)===id);if(!emp)return;names.push(emp.name);
+      const dateText=timestamps.sort((a,b)=>a-b).map(t=>new Date(t).toLocaleDateString('en-GB',{day:'numeric',month:'short'})).join(', ');
+      const tr=document.createElement('tr');tr.className='border-b align-top';
+      tr.innerHTML=`<td class="p-2 text-xs font-semibold">${safeText(emp.name)}</td><td class="p-2 text-xs text-indigo-700">${safeText(dateText)}</td><td class="p-2"><input class="field" data-emp="${safeText(id)}" name="title" placeholder="Assignment title"></td><td class="p-2"><textarea class="field" data-emp="${safeText(id)}" name="description" rows="2" placeholder="Assignment details"></textarea></td><td class="p-2"><input class="field" data-emp="${safeText(id)}" name="link" placeholder="Optional link"></td>`;
+      $('allocation-rows').appendChild(tr);
+    });
+    $('allocation-to').textContent=names.join(', ');openModal('allocation-modal');
+  }
+  function prepareEmail(){
+    pendingAllocations=[];let valid=true;
+    $('allocation-rows').querySelectorAll('tr').forEach(row=>{
+      const title=row.querySelector('[name="title"]');const desc=row.querySelector('[name="description"]');const link=row.querySelector('[name="link"]');
+      [title,desc].forEach(el=>el.classList.remove('error'));
+      if(!title.value.trim()){title.classList.add('error');valid=false;}if(!desc.value.trim()){desc.classList.add('error');valid=false;}
+      pendingAllocations.push({empId:title.dataset.emp,title:title.value.trim(),desc:desc.value.trim(),link:link.value.trim()});
+    });
+    if(!valid)return;
+    const sections=pendingAllocations.map(a=>{
+      const emp=state.employees.find(e=>String(e.id)===String(a.empId));
+      const dates=[...selectedCells].filter(k=>k.startsWith(`${a.empId}-`)).map(k=>new Date(Number(k.slice(k.indexOf('-')+1)))).sort((x,y)=>x-y).map(d=>d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})).join(', ');
+      return `<h3>Assignment for ${safeText(emp.name)}</h3><table style="border-collapse:collapse;width:100%;margin-bottom:20px"><tr><td style="border:1px solid #ddd;padding:8px"><b>Title</b></td><td style="border:1px solid #ddd;padding:8px">${safeText(a.title)}</td></tr><tr><td style="border:1px solid #ddd;padding:8px"><b>Dates</b></td><td style="border:1px solid #ddd;padding:8px">${safeText(dates)}</td></tr><tr><td style="border:1px solid #ddd;padding:8px"><b>Details</b></td><td style="border:1px solid #ddd;padding:8px">${safeText(a.desc)}</td></tr><tr><td style="border:1px solid #ddd;padding:8px"><b>Link</b></td><td style="border:1px solid #ddd;padding:8px">${a.link?`<a href="${safeText(a.link)}">${safeText(a.link)}</a>`:'N/A'}</td></tr></table>`;
+    }).join('');
+    $('email-preview').innerHTML=`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#333"><p>Hello ${safeText(pendingAllocations.map(a=>state.employees.find(e=>String(e.id)===String(a.empId))?.name).join(', '))},</p><p>You have been assigned a new activity. Please find the assignment details below.</p>${sections}<p>Please contact the Architect if you have any questions.</p><p>Regards,<br><b>TSC Architects Team</b></p></div>`;
+    openModal('email-modal');
+  }
+  function persistPendingAssignments(){
+    if(!pendingAllocations.length){alert('Please add assignment details first.');return false;}
+    pendingAllocations.forEach(a=>selectedCells.forEach(key=>{
+      if(key.startsWith(`${a.empId}-`))state.allocations[key]={title:a.title,desc:a.desc,link:a.link};
+    }));
+    selectedCells.clear();saveData();updateAssignButton();renderGrid();
+    closeModal('email-modal');closeModal('allocation-modal');
+    return true;
+  }
+  function saveAssignmentOnly(){
+    if(!preparePendingAssignments())return;
+    if(persistPendingAssignments())toast('Assignment saved successfully.');
+  }
+  function preparePendingAssignments(){
+    pendingAllocations=[];let valid=true;
+    $('allocation-rows').querySelectorAll('tr').forEach(row=>{
+      const title=row.querySelector('[name="title"]');const desc=row.querySelector('[name="description"]');const link=row.querySelector('[name="link"]');
+      [title,desc].forEach(el=>el.classList.remove('error'));
+      if(!title.value.trim()){title.classList.add('error');valid=false;}
+      if(!desc.value.trim()){desc.classList.add('error');valid=false;}
+      pendingAllocations.push({empId:title.dataset.emp,title:title.value.trim(),desc:desc.value.trim(),link:link.value.trim()});
+    });
+    return valid;
+  }
+  async function copyAndOpenMail(){
+    const html=$('email-preview').innerHTML;const plain=$('email-preview').innerText;
+    try{
+      if(navigator.clipboard&&window.ClipboardItem){await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]);}
+      else {const range=document.createRange();range.selectNodeContents($('email-preview'));const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);document.execCommand('copy');selection.removeAllRanges();}
+    }catch(error){alert('Clipboard permission was blocked. Select and copy the email preview manually, then continue.');return;}
+    // Save the assignment only after the email content has been copied.
+    const recipients=pendingAllocations.map(a=>state.employees.find(e=>String(e.id)===String(a.empId))?.email).filter(Boolean).join(',');
+    const subject=encodeURIComponent(`Resource Allocation: ${pendingAllocations[0]?.title||'Assignment'}`);
+    if(!persistPendingAssignments())return;
+    window.location.href=`mailto:${encodeURIComponent(recipients)}?cc=${encodeURIComponent(RMG_EMAILS)}&subject=${subject}`;
+    toast('Assignment saved. Email draft opened.');
+  }
+  function openAssignment(key){const alloc=state.allocations[key];if(!alloc)return;activeAllocationKey=key;$('detail-title').textContent=alloc.title;$('detail-description').textContent=alloc.desc;const link=$('detail-link');if(alloc.link){link.href=/^https?:\/\//i.test(alloc.link)?alloc.link:`https://${alloc.link}`;link.classList.remove('hidden');}else link.classList.add('hidden');openModal('details-modal');}
+  function releaseAssignment(){if(activeAllocationKey){delete state.allocations[activeAllocationKey];saveData();renderGrid();closeModal('details-modal');toast('Resource released.');}}
+  function backup(){const blob=new Blob([JSON.stringify({employees:state.employees,allocations:state.allocations},null,2)],{type:'application/json'});downloadBlob(blob,`vmi_backup_${new Date().toISOString().slice(0,10)}.json`);}
+  function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
+  function restore(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(reader.result);if(!Array.isArray(data.employees)||!data.allocations||typeof data.allocations!=='object')throw new Error('Invalid backup');state.employees=data.employees.map(normalizeEmployee);state.allocations=data.allocations;saveData();renderGrid();toast('Backup restored.');}catch(err){alert('Invalid backup file. No data was changed.');}finally{event.target.value='';}};reader.readAsText(file);}
+  function csv(){const headers=['Name','Email','Total Experience','VMI Experience','Tech Family','Project','Status'];const rows=state.employees.map(e=>[e.name,e.email,e.exp,e.vmiExp,e.tech.join('; '),e.projectName,e.status]);const quote=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const content=[headers,...rows].map(row=>row.map(quote).join(',')).join('\r\n');downloadBlob(new Blob([content],{type:'text/csv;charset=utf-8'}),'VMI_Resources.csv');}
 
-            const thead = document.getElementById('calendar-header');
-            let h = `<th class="sticky-col w-64 px-4 py-3 text-left bg-white border-b z-50 text-xs font-bold text-gray-400 uppercase">Resource</th>`;
-            state.dates.forEach((d, i) => { const isToday = i === state.todayIndex; const mCode = d.toLocaleDateString('en-US',{month:'short'}).toUpperCase(); const mDisp = d.getDate()===1 ? `<div class="bg-gray-800 text-white text-[9px] px-1 rounded -mt-1 mb-0.5 inline-block">${mCode}</div>` : `<div class="text-[9px] ${isToday?'text-indigo-400':'text-slate-300'} font-bold tracking-wider leading-none mt-0.5">${mCode}</div>`; h += `<th class="px-1 py-2 text-center min-w-[52px] border-b ${isToday?'bg-indigo-50 border-indigo-200':''} border-gray-200" ${isToday?'id="today-marker"':''}> <div class="text-[10px] text-gray-400 leading-tight">${d.toLocaleDateString('en-US',{weekday:'narrow'})}</div> <div class="text-sm font-bold ${isToday?'text-indigo-600':'text-gray-700'} leading-tight">${d.getDate()}</div>${mDisp} </th>`; }); thead.innerHTML = h; const tbody = document.getElementById('grid-body'); tbody.innerHTML = ''; filtered.forEach(emp => { const isInactive = emp.status === 'Inactive'; const tr = document.createElement('tr'); tr.className = `border-b border-gray-100 transition-colors group ${isInactive ? 'inactive-row' : 'hover:bg-slate-50'}`; const techTags = emp.tech.map(t => `<span class="px-1 py-0.5 text-[9px] rounded border ${TECH_COLORS[t]||'bg-gray-100'}">${t.split(' ')[0]}</span>`).join(''); let delBtn = ''; if(state.role === 'RMG') { if(isInactive) delBtn = `<span class="text-[10px] font-bold text-gray-400 border border-gray-300 px-1 rounded bg-white">INACTIVE</span>`; else delBtn = `<button onclick="openDeactivateModal(${emp.id}, event)" class="text-gray-300 hover:text-amber-500 ml-auto" title="Deactivate"><i data-lucide="user-minus" class="w-4 h-4"></i></button>`; } let row = `<td class="sticky-col p-4 bg-white align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-indigo-50 transition-colors" onclick="openProfileModal(${emp.id})"> <div class="flex items-start gap-3"> ${emp.photo ? `<img src="${emp.photo}" class="w-9 h-9 rounded-full object-cover border">` : `<div class="w-9 h-9 rounded-full bg-slate-100 border flex items-center justify-center text-xs font-bold text-slate-500">${emp.avatar}</div>`} <div class="flex-1"> <div class="flex justify-between items-start"> <div class="text-sm font-bold text-gray-800 hover:text-indigo-600 hover:underline">${emp.name}</div> ${delBtn} </div> <div class="text-[10px] text-gray-400 font-mono mb-1">${emp.email}</div> <div class="flex flex-wrap gap-1">${techTags}</div> </div> </div> </td>`; state.dates.forEach((d, i) => { const isPast = i < state.todayIndex; const key = `${emp.id}-${d.getTime()}`; const busy = state.allocations[key]; const sel = selectedCells.has(key); let inner = ''; if(busy) { const act = (!isPast && state.role === 'Architect' && !isInactive) ? `onclick="openUnassignModal('${key}')" class="cursor-pointer hover:scale-110"` : `class="cursor-help"`; const statusColor = isInactive ? 'bg-gray-400 border-gray-500' : 'bg-green-500 border-green-600'; inner = `<div class="tooltip-container relative flex justify-center items-center h-full w-full"> <div ${act}><div class="w-9 h-9 rounded-full ${statusColor} border-4 shadow-sm transition-transform"></div></div> <div class="tooltip-content hidden absolute bottom-full mb-2 w-48 bg-slate-800 text-white text-xs rounded p-2 z-[60] pointer-events-none text-left"> <div class="font-bold text-green-300">${busy.title}</div><div class="text-gray-300">${busy.desc}</div> </div> </div>`; } else { if(isInactive) { inner = `<div class="w-9 h-9 rounded-full border-2 border-gray-200 bg-gray-100 mx-auto opacity-50"></div>`; } else { const color = sel ? 'bg-blue-500 border-blue-600 scale-105 shadow-md' : 'bg-transparent border-gray-200 hover:border-gray-400'; const cursor = (!isPast && state.role === 'Architect') ? 'cursor-pointer' : 'cursor-default'; const click = (!isPast && state.role === 'Architect') ? `onclick="toggleSelection('${key}')"` : ''; inner = `<div class="w-9 h-9 rounded-full border-[3px] mx-auto transition-all duration-200 ${color} ${cursor}" ${click}></div>`; } } row += `<td class="p-1 h-14 text-center align-middle ${isPast?'past-date':''}">${inner}</td>`; }); tr.innerHTML = row; tbody.appendChild(tr); }); lucide.createIcons();
-        }
+  // All UI events are attached after the DOM has loaded; no inline handlers are required.
+  document.addEventListener('click',event=>{
+    const role=event.target.closest('[data-role]');if(role){setRole(role.dataset.role);return;}
+    const techFilter=event.target.closest('[data-tech-filter]');if(techFilter){const tech=techFilter.dataset.techFilter;if(selectedTechFilters.has(tech))selectedTechFilters.delete(tech);else selectedTechFilters.add(tech);updateTechFilterButtons();renderGrid();return;}
+    if(event.target.closest('#add-resource-btn')){openAddModal();return;}
+    const closer=event.target.closest('.close-modal');if(closer){closeModal(closer.dataset.modal);return;}
+    const cell=event.target.closest('[data-cell]');if(cell){const key=cell.dataset.cell;selectedCells.has(key)?selectedCells.delete(key):selectedCells.add(key);updateAssignButton();renderGrid();return;}
+    const assignment=event.target.closest('[data-allocation]');if(assignment){openAssignment(assignment.dataset.allocation);return;}
+    const profile=event.target.closest('[data-profile]');if(profile&&!event.target.closest('.deactivate')){openProfile(profile.dataset.profile);return;}
+    const deactivate=event.target.closest('.deactivate');if(deactivate){event.stopPropagation();openDeactivate(deactivate.dataset.id);return;}
+    if(event.target.closest('#assign-btn')){openAllocation();return;}
+    if(event.target.closest('#backup-btn')){backup();return;}
+    if(event.target.closest('#csv-btn')){csv();return;}
+    if(event.target.closest('#draft-email-btn')){prepareEmail();return;}
+    if(event.target.closest('#save-assignment-btn')){saveAssignmentOnly();return;}
+    if(event.target.closest('#copy-mail-btn')){copyAndOpenMail();return;}
+    if(event.target.closest('#save-profile')){saveProfile();return;}
+    if(event.target.closest('#confirm-deactivate')){confirmDeactivate();return;}
+    if(event.target.closest('#release-btn')){releaseAssignment();return;}
+  });
+  $('add-form').addEventListener('submit',addEmployee);
+  $('search').addEventListener('input',renderGrid);
+  $('exp-filter').addEventListener('input',()=>{$('exp-label').textContent=$('exp-filter').value+'+';renderGrid();});
+  $('profile-photo').addEventListener('change',handlePhoto);
+  $('restore-file').addEventListener('change',restore);
+  document.querySelectorAll('.modal').forEach(modal=>modal.addEventListener('click',event=>{if(event.target===modal)closeModal(modal.id);}));
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('.modal.open').forEach(m=>closeModal(m.id));});
 
-        function toggleSelection(key) { if(selectedCells.has(key)) selectedCells.delete(key); else selectedCells.add(key); updateAssignButton(); renderGrid(); }
-        function updateAssignButton() { const btn = document.getElementById('assign-btn'); if(selectedCells.size > 0 && state.role === 'Architect') { btn.classList.remove('hidden'); document.getElementById('assign-badge').innerText = selectedCells.size; } else btn.classList.add('hidden'); }
-        
-        function openAllocationModal() { 
-            const tbody = document.getElementById('allocation-rows'); tbody.innerHTML = ''; 
-            const grouped = {}; 
-            selectedCells.forEach(key => { const [id, t] = key.split('-'); if(!grouped[id]) grouped[id]=[]; grouped[id].push(parseInt(t)); });
-            
-            const recipientNames = [];
-            Object.keys(grouped).forEach(id => { 
-                const emp = state.employees.find(e => e.id == id);
-                recipientNames.push(emp.name);
-                const dates = grouped[id].sort((a,b)=>a-b).map(t => { const d=new Date(t); return `${d.getDate()} ${d.toLocaleDateString('en-US',{month:'short'})}`; }).join(", "); 
-                const tr = document.createElement('tr'); 
-                tr.className = "bg-white border-b hover:bg-gray-50 align-top"; 
-                tr.innerHTML = `<td class="px-3 py-3 font-medium text-gray-900"><div class="text-xs font-bold">${emp.name}</div></td> <td class="px-3 py-3 text-xs text-indigo-600 font-bold">${dates}</td> <td class="px-3 py-3"><input type="text" data-emp="${id}" name="title" placeholder="Title" class="bg-gray-50 border border-gray-300 text-xs rounded block w-full p-2 outline-none focus:border-indigo-500"></td> <td class="px-3 py-3"><textarea data-emp="${id}" name="desc" placeholder="Details" class="bg-gray-50 border border-gray-300 text-xs rounded block w-full p-2 h-16 resize-none outline-none focus:border-indigo-500"></textarea></td> <td class="px-3 py-3"><input type="text" data-emp="${id}" name="link" placeholder="Link..." class="bg-transparent text-xs w-full outline-none border-b"></td>`; 
-                tbody.appendChild(tr); 
-            }); 
-            
-            document.getElementById('alloc-to-list').innerText = recipientNames.join(", ");
-            document.getElementById('allocation-modal').classList.remove('hidden'); 
-        }
-
-        // --- BACKUP & RESTORE ---
-        function backupData() {
-            const json = JSON.stringify(state, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `vmi_database_${new Date().toISOString().split('T')[0]}.json`;
-            link.click();
-            showToast("Database downloaded successfully");
-        }
-
-        function restoreData(input) {
-            if(!input.files || !input.files[0]) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    if(!data.employees || !data.allocations) throw new Error("Invalid format");
-                    state = data;
-                    generateDates();
-                    saveData();
-                    renderGrid();
-                    showToast("Database restored successfully");
-                } catch(err) {
-                    alert("Error restoring file: Invalid JSON structure.");
-                }
-            };
-            reader.readAsText(input.files[0]);
-        }
-
-        function downloadCSV() {
-            const headers = ["Name", "Email", "Total Exp", "VMI Exp", "Tech Stack", "Status"];
-            const rows = state.employees.map(e => [e.name, e.email, e.exp, e.vmiExp, e.tech.join('; '), e.status].join(","));
-            const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "VMI_Resources.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        // --- EMAIL LOGIC ---
-        function formatDateVMI(dateObj) {
-            const d = dateObj.getDate();
-            const m = dateObj.toLocaleDateString('en-US', { month: 'short' });
-            return `${d}-${m}`;
-        }
-
-        function prepareEmailPreview() {
-            const rows = document.getElementById('allocation-rows').querySelectorAll('tr');
-            let success = true; pendingAllocations = []; 
-            document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
-            rows.forEach(row => {
-                const titleIn = row.querySelector('input[name="title"]');
-                const descIn = row.querySelector('textarea[name="desc"]');
-                const linkIn = row.querySelector('input[name="link"]');
-                const empId = titleIn.getAttribute('data-emp');
-                if(!titleIn.value.trim()) { titleIn.classList.add('input-error'); success = false; }
-                if(!descIn.value.trim()) { descIn.classList.add('input-error'); success = false; }
-                if(titleIn.value && descIn.value) pendingAllocations.push({empId, title: titleIn.value, desc: descIn.value, link: linkIn.value});
-            });
-            if(!success) return;
-
-            let tablesHtml = "";
-            pendingAllocations.forEach(alloc => {
-                const emp = state.employees.find(e => e.id == alloc.empId);
-                const dates = [];
-                selectedCells.forEach(k => {
-                    if(k.startsWith(`${alloc.empId}-`)) { dates.push(new Date(parseInt(k.split('-')[1]))); }
-                });
-                dates.sort((x,y) => x-y);
-                const formattedDates = dates.map(formatDateVMI).join(', ');
-
-                tablesHtml += `
-                    <div style="margin-bottom: 25px;">
-                        <div style="font-weight: bold; color: #4f46e5; margin-bottom: 5px;">Details for ${emp.name}:</div>
-                        <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb;">
-                            <tr style="background-color: #f8fafc;">
-                                <td style="padding: 10px; border: 1px solid #e5e7eb; width: 30%; font-weight: bold; font-size: 13px;">Title</td>
-                                <td style="padding: 10px; border: 1px solid #e5e7eb; font-size: 13px;">${alloc.title}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: bold; font-size: 13px;">Dates</td>
-                                <td style="padding: 10px; border: 1px solid #e5e7eb; font-size: 13px;">${formattedDates}</td>
-                            </tr>
-                            <tr style="background-color: #f8fafc;">
-                                <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: bold; font-size: 13px;">Description</td>
-                                <td style="padding: 10px; border: 1px solid #e5e7eb; font-size: 13px;">${alloc.desc}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: bold; font-size: 13px;">Link</td>
-                                <td style="padding: 10px; border: 1px solid #e5e7eb; font-size: 13px;"><a href="${alloc.link}">${alloc.link || 'N/A'}</a></td>
-                            </tr>
-                        </table>
-                    </div>
-                `;
-            });
-
-            const recipientNames = pendingAllocations.map(a => state.employees.find(e => e.id == a.empId).name).join(", ");
-            
-            const emailHtml = `
-                <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; font-size: 14px;">
-                    <p>Hello <b>${recipientNames}</b>,</p>
-                    <p>We are pleased to inform you that you have been assigned a new activity as part of our ongoing enablement and delivery initiatives. Please find the assignment details below.</p>
-                    <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
-                    ${tablesHtml}
-                    <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
-                    <p>If you have any questions or need clarification on the scope or deliverables, please feel free to reach out to the sender Architect.</p>
-                    <p style="margin-top: 20px;">Regards,<br><b>TSC Architects Team</b></p>
-                </div>
-            `;
-            document.getElementById('email-content-container').innerHTML = emailHtml;
-            document.getElementById('email-preview-modal').classList.remove('hidden');
-        }
-
-        async function copyAndOpenMail() {
-            const content = document.getElementById('email-content-container').innerHTML;
-            const blob = new Blob([content], { type: 'text/html' });
-            const plainBlob = new Blob([document.getElementById('email-content-container').innerText], { type: 'text/plain' });
-            const item = new ClipboardItem({ 'text/html': blob, 'text/plain': plainBlob });
-            try {
-                await navigator.clipboard.write([item]);
-                confirmAssignment(); 
-                
-                const recipientEmails = pendingAllocations.map(a => state.employees.find(e => e.id == a.empId).email).join(",");
-                const subject = encodeURIComponent(`Resource Allocation: ${pendingAllocations[0].title}`);
-                window.location.href = `mailto:${recipientEmails}?cc=${RMG_EMAILS}&subject=${subject}`;
-                closeModal('email-preview-modal');
-            } catch (err) { alert("Clipboard API not supported. Please copy manually."); }
-        }
-
-        function confirmAssignment() {
-            pendingAllocations.forEach(u => { 
-                selectedCells.forEach(k => { if(k.startsWith(`${u.empId}-`)) state.allocations[k] = {title: u.title, desc: u.desc, link: u.link}; });
-            });
-            selectedCells.clear(); saveData(); updateAssignButton(); renderGrid(); closeModal('allocation-modal');
-        }
-
-        function openUnassignModal(key) { activeUnassignKey = key; const alloc = state.allocations[key]; document.getElementById('view-title').innerText = alloc.title; document.getElementById('view-desc').innerText = alloc.desc; const linkCont = document.getElementById('view-link-container'); const linkEl = document.getElementById('view-link'); if(alloc.link) { linkCont.classList.remove('hidden'); linkEl.href = alloc.link.startsWith('http')?alloc.link:'https://'+alloc.link; } else { linkCont.classList.add('hidden'); } document.getElementById('unassign-modal').classList.remove('hidden'); }
-        function performUnassign() { if(activeUnassignKey) { delete state.allocations[activeUnassignKey]; saveData(); renderGrid(); closeModal('unassign-modal'); showToast("Resource Released"); } }
-        function openProfileModal(id) { currentProfileId = id; const emp = state.employees.find(e => e.id === id); document.getElementById('prof-name').innerText = emp.name; document.getElementById('prof-email').innerText = emp.email; document.getElementById('prof-bio').value = emp.bio || ""; document.getElementById('prof-loc').value = emp.loc || ""; document.getElementById('prof-li').value = emp.li || ""; document.getElementById('prof-gh').value = emp.gh || ""; document.getElementById('prof-exp').innerText = `${emp.exp} Yrs`; document.getElementById('prof-vmi').innerText = `${emp.vmiExp || 0} Yrs`; document.getElementById('prof-proj-name').value = emp.projectName || ""; document.getElementById('prof-proj-desc').value = emp.projectDesc || ""; const badge = document.getElementById('prof-status-badge'); if(emp.status === 'Inactive') { badge.className = "px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-gray-200 text-gray-600"; badge.innerText = "Inactive"; } else { badge.className = "px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-green-100 text-green-700"; badge.innerText = "Active"; } const img = document.getElementById('prof-img'); const initials = document.getElementById('prof-initials'); if(emp.photo) { img.src = emp.photo; img.classList.remove('hidden'); initials.classList.add('hidden'); } else { img.classList.add('hidden'); initials.classList.remove('hidden'); initials.innerText = emp.avatar; } const techCont = document.getElementById('prof-tech'); techCont.innerHTML = ''; emp.tech.forEach(t => techCont.innerHTML += `<span class="px-2 py-1 bg-gray-100 border rounded text-xs text-gray-700">${t}</span>`); document.getElementById('profile-modal').classList.remove('hidden'); }
-        function uploadProfileImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = function(e) { state.employees.find(e => e.id === currentProfileId).photo = e.target.result; openProfileModal(currentProfileId); }; reader.readAsDataURL(input.files[0]); } }
-        function saveProfile() { const emp = state.employees.find(e => e.id === currentProfileId); emp.bio = document.getElementById('prof-bio').value; emp.loc = document.getElementById('prof-loc').value; emp.li = document.getElementById('prof-li').value; emp.gh = document.getElementById('prof-gh').value; emp.projectName = document.getElementById('prof-proj-name').value; emp.projectDesc = document.getElementById('prof-proj-desc').value; saveData(); renderGrid(); closeModal('profile-modal'); showToast("Profile Updated"); }
-        function openAddModal() { document.getElementById('rmg-modal').classList.remove('hidden'); }
-        function addNewEmployee() { const name = document.getElementById('new-name').value; const email = document.getElementById('new-email').value; const exp = document.getElementById('new-exp').value; const vmi = document.getElementById('new-vmi').value; const projName = document.getElementById('new-proj-name').value; const projDesc = document.getElementById('new-proj-desc').value; const tech = Array.from(document.querySelectorAll('#new-tech-options input:checked')).map(c=>c.value); if(!name || !email || !exp || !vmi || tech.length===0) return alert("Fill mandatory fields (*)"); if(!email.toLowerCase().endsWith('@valuemomentum.com')) return alert("Error: Email must end with @valuemomentum.com"); if(parseInt(vmi) > parseInt(exp)) return alert("VMI Exp cannot be greater than Total Exp"); state.employees.push({ id: Date.now(), name, email, exp: parseInt(exp), vmiExp: parseInt(vmi), projectName: projName, projectDesc: projDesc, tech, status: 'Active', avatar: name.substring(0,2).toUpperCase(), bio:"", loc:"", li:"", gh:"", photo:"" }); saveData(); closeModal('rmg-modal'); renderGrid(); }
-        function openDeactivateModal(id, e) { e.stopPropagation(); const emp = state.employees.find(e => e.id === id); const imgDiv = document.getElementById('deact-avatar'); if(emp.photo) { imgDiv.innerHTML = `<img src="${emp.photo}" class="w-full h-full rounded-full object-cover">`; } else { imgDiv.innerHTML = emp.avatar; } document.getElementById('deact-name').innerText = emp.name; document.getElementById('deact-email').innerText = emp.email; document.getElementById('deact-exp').innerText = `${emp.exp}Y Total`; document.getElementById('deact-vmi').innerText = `${emp.vmiExp||0}Y VMI`; const techCont = document.getElementById('deact-tech'); techCont.innerHTML = ''; emp.tech.forEach(t => techCont.innerHTML += `<span class="px-1.5 py-0.5 bg-gray-100 text-[10px] rounded text-gray-600 border">${t}</span>`); const hasAllocations = Object.keys(state.allocations).some(k => k.startsWith(id + '-')); const warn = document.getElementById('deact-warning'); if(hasAllocations) warn.classList.remove('hidden'); else warn.classList.add('hidden'); document.getElementById('confirm-deactivate-btn').onclick = () => { emp.status = 'Inactive'; saveData(); renderGrid(); closeModal('deactivate-modal'); showToast("Resource Deactivated"); }; document.getElementById('deactivate-modal').classList.remove('hidden'); }
-        function showToast(msg) { const c = document.getElementById('toast-container'); const t = document.createElement('div'); t.className = "toast bg-white border-l-4 border-green-500 shadow-xl rounded p-3 flex gap-3 min-w-[200px]"; t.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5 text-green-500"></i><span class="text-sm font-bold text-gray-800">${msg}</span>`; c.appendChild(t); lucide.createIcons(); setTimeout(()=>t.remove(), 3000); }
-        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-        init();
-    </script>
+  loadData();makeDates();renderTechControls();updateTechFilterButtons();setRole('Resources');
+  if(window.lucide)lucide.createIcons();
+  setTimeout(()=>{const wrap=$('calendar-wrap');wrap.scrollLeft=260+15*54-200;},100);
+})();
+</script>
 </body>
 </html>
